@@ -35,8 +35,20 @@ export function normalizeText(value: string | null | undefined) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
+function hasUsState(value: string) {
+  const upper = ` ${normalizeText(value).toUpperCase()} `;
+  const stateTokens = [
+    ' AL ', ' AK ', ' AZ ', ' AR ', ' CA ', ' CO ', ' CT ', ' DE ', ' FL ', ' GA ', ' HI ', ' ID ', ' IL ', ' IN ',
+    ' IA ', ' KS ', ' KY ', ' LA ', ' ME ', ' MD ', ' MA ', ' MI ', ' MN ', ' MS ', ' MO ', ' MT ', ' NE ', ' NV ',
+    ' NH ', ' NJ ', ' NM ', ' NY ', ' NC ', ' ND ', ' OH ', ' OK ', ' OR ', ' PA ', ' RI ', ' SC ', ' SD ', ' TN ',
+    ' TX ', ' UT ', ' VT ', ' VA ', ' WA ', ' WV ', ' WI ', ' WY ',
+  ];
+  return stateTokens.some((token) => upper.includes(token)) ||
+    /\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/i.test(normalizeText(value));
+}
+
 export function buildComplianceChecks(analysis: LabelAnalysis) {
-  const checks = analysis.checks;
+  const checks = normalizeFieldChecks(analysis);
   const score = checks.reduce((acc, check) => {
     if (check.status === 'pass') return acc + 1;
     if (check.status === 'review') return acc + 0.45;
@@ -49,6 +61,78 @@ export function buildComplianceChecks(analysis: LabelAnalysis) {
     complianceScore: normalized,
     status: normalized >= 85 ? 'pass' : normalized >= 60 ? 'review' : 'fail',
   } satisfies LabelAnalysis;
+}
+
+export function normalizeFieldChecks(analysis: LabelAnalysis) {
+  const existing = analysis.checks ?? [];
+  const fields: Array<keyof Pick<
+    LabelAnalysis,
+    'brandName' | 'classType' | 'alcoholContent' | 'netContents' | 'producerName' | 'producerAddress' | 'countryOfOrigin' | 'governmentWarning'
+  >> = [
+    'brandName',
+    'classType',
+    'alcoholContent',
+    'netContents',
+    'producerName',
+    'producerAddress',
+    'countryOfOrigin',
+    'governmentWarning',
+  ];
+
+  return fields.map((field) => {
+    const fieldLabel = field === 'classType' ? 'Class/type' : field === 'producerName' ? 'Producer / bottler' : field === 'governmentWarning' ? 'Government warning' : field === 'brandName' ? 'Brand name' : field === 'alcoholContent' ? 'Alcohol content' : field === 'netContents' ? 'Net contents' : field === 'producerAddress' ? 'Producer address' : 'Country of origin';
+    const value = analysis[field];
+    const matching = existing.find((check) => normalizeText(check.id).toLowerCase().replace(/[^a-z0-9]+/g, '') === field.toLowerCase());
+    const status = determineFieldStatus(field, value, analysis);
+    return {
+      id: field,
+      label: fieldLabel,
+      status,
+      detail: matching?.detail ?? buildFieldDetail(field, value, analysis, status),
+    };
+  }) as LabelAnalysis['checks'];
+}
+
+function determineFieldStatus(
+  field: 'brandName' | 'classType' | 'alcoholContent' | 'netContents' | 'producerName' | 'producerAddress' | 'countryOfOrigin' | 'governmentWarning',
+  value: string | null,
+  analysis: LabelAnalysis,
+) {
+  const text = normalizeText(value);
+  const domesticText = `${normalizeText(analysis.producerName)} ${normalizeText(analysis.producerAddress)}`;
+  const looksDomestic = hasUsState(domesticText) || /usa|united states|domestic/i.test(domesticText);
+
+  if (!text) {
+    if (field === 'countryOfOrigin' && looksDomestic) return 'pass';
+    return 'fail';
+  }
+
+  if (field === 'alcoholContent') return ALC_RX.test(text) ? 'pass' : 'review';
+  if (field === 'netContents') return NET_RX.test(text) ? 'pass' : 'review';
+  if (field === 'governmentWarning') return text.toUpperCase().startsWith(GOV_WARNING_PREFIX) ? 'pass' : 'review';
+  if (field === 'countryOfOrigin') return looksDomestic ? 'pass' : 'review';
+  return 'pass';
+}
+
+function buildFieldDetail(
+  field: 'brandName' | 'classType' | 'alcoholContent' | 'netContents' | 'producerName' | 'producerAddress' | 'countryOfOrigin' | 'governmentWarning',
+  value: string | null,
+  analysis: LabelAnalysis,
+  status: 'pass' | 'review' | 'fail',
+) {
+  const text = normalizeText(value);
+  if (!text) {
+    if (field === 'countryOfOrigin' && (hasUsState(`${analysis.producerName ?? ''} ${analysis.producerAddress ?? ''}`) || /usa|united states|domestic/i.test(`${analysis.producerName ?? ''} ${analysis.producerAddress ?? ''}`))) {
+      return 'Domestic labels can omit a country of origin statement.';
+    }
+    return 'Blank field. This should be present.';
+  }
+  if (status === 'pass') return `Detected: ${text}`;
+  if (field === 'governmentWarning') return `Warning text is present, but the header does not start with "${GOV_WARNING_PREFIX}". Detected: ${text}`;
+  if (field === 'countryOfOrigin') return `Country of origin may be optional for domestic labels. Detected: ${text}`;
+  if (field === 'alcoholContent') return `Expected alcohol by volume text with a numeric percent or proof. Detected: ${text}`;
+  if (field === 'netContents') return `Expected a packaged volume like 750 mL. Detected: ${text}`;
+  return `Detected: ${text}`;
 }
 
 export function localFallbackAnalysis(ocrText: string): LabelAnalysis {
