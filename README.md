@@ -41,18 +41,45 @@ OPENAI_MODEL=gpt-5.5
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3100.
 
 ## Deployment
 
 This app needs a Node-hosted deployment because it calls OpenAI from a server route.
 
-Recommended options:
+Recommended option: **Railway**.
+
+Why Railway here:
+
+- It supports Next.js apps directly.
+- It handles server routes without extra infrastructure.
+- You can deploy from GitHub or with `railway up` from the repo root.
+
+Other viable options:
 
 - Vercel
 - Render
 - Fly.io
 - Any Node runtime that supports Next.js
+
+### Railway deploy
+
+1. Push this repo to GitHub.
+2. Create a Railway project and connect the repo.
+3. Set environment variables:
+
+```bash
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-5.5
+```
+
+4. Deploy the default branch.
+
+If you prefer the CLI:
+
+```bash
+railway up
+```
 
 Set the same environment variables in the host:
 
