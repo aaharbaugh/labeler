@@ -33,6 +33,12 @@ type ReviewItem = {
   analysis?: LabelAnalysis;
   originalAnalysis?: LabelAnalysis;
   applicationFacts?: Record<string, string>;
+  reviewMeta?: {
+    startedAt?: number;
+    completedAt?: number;
+    durationMs?: number;
+  };
+  checkOverrides?: Record<string, LabelAnalysis['status']>;
   error?: string;
 };
 
@@ -47,6 +53,9 @@ type BatchManifestItem = {
   imageDataUrl?: string;
   applicationFacts: Record<string, string>;
   analysis?: LabelAnalysis;
+  meta?: {
+    reviewDurationMs?: number;
+  };
 };
 
 const FIELD_LABELS: Record<AnalysisField, string> = {
@@ -339,6 +348,7 @@ export default function Home() {
         preview: reviewData.dataUrl,
         imageDataUrl: reviewData.dataUrl,
         mimeType: reviewData.mimeType,
+        reviewMeta: { startedAt: Date.now() },
       };
       addedIds.push(id);
       setItems((prev) => [queuedItem, ...prev]);
@@ -405,6 +415,13 @@ export default function Home() {
         applicationFacts: manifestItem.applicationFacts,
         analysis: reviewAnalysis,
         originalAnalysis: reviewAnalysis,
+        reviewMeta: reviewAnalysis?.complianceScore
+          ? {
+              startedAt: Date.now(),
+              completedAt: Date.now(),
+              durationMs: 0,
+            }
+          : { startedAt: Date.now() },
       };
       addedIds.push(id);
       setItems((prev) => [queuedItem, ...prev]);
@@ -420,6 +437,7 @@ export default function Home() {
   };
 
   const processFile = async (queuedItem: ReviewItem) => {
+    const startedAt = queuedItem.reviewMeta?.startedAt ?? Date.now();
     setItems((prev) =>
       prev.map((entry) => (entry.id === queuedItem.id ? { ...entry, status: 'uploading' } : entry)),
     );
@@ -447,6 +465,11 @@ export default function Home() {
                 name: buildReviewedName(analysis, queuedItem.name),
                 analysis,
                 originalAnalysis: analysis,
+                reviewMeta: {
+                  startedAt,
+                  completedAt: Date.now(),
+                  durationMs: Math.max(0, Date.now() - startedAt),
+                },
               }
             : item,
         ),
@@ -455,7 +478,16 @@ export default function Home() {
       setItems((prev) =>
         prev.map((item) =>
           item.id === queuedItem.id
-            ? { ...item, status: 'error', error: error instanceof Error ? error.message : 'Review failed' }
+            ? {
+                ...item,
+                status: 'error',
+                error: error instanceof Error ? error.message : 'Review failed',
+                reviewMeta: {
+                  startedAt,
+                  completedAt: Date.now(),
+                  durationMs: Math.max(0, Date.now() - startedAt),
+                },
+              }
             : item,
         ),
       );
@@ -719,18 +751,17 @@ export default function Home() {
   };
 
   const resetAnalysis = (itemId: string) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== itemId || !item.originalAnalysis) return item;
-        return {
-          ...item,
-          analysis: {
-            ...item.originalAnalysis,
-            checks: normalizeFieldChecks(item.originalAnalysis),
-          },
-        };
-      }),
-    );
+    const currentItem = items.find((item) => item.id === itemId);
+    if (!currentItem) return;
+    const restarted = {
+      ...currentItem,
+      status: 'queued' as const,
+      error: undefined,
+      reviewMeta: { startedAt: Date.now() },
+      checkOverrides: {},
+    };
+    setItems((prev) => prev.map((item) => (item.id === itemId ? restarted : item)));
+    scheduleReview(() => processFile(restarted));
   };
 
   const getFieldCheck = (field: Exclude<AnalysisField, 'complianceScore' | 'status'>) => {
@@ -763,16 +794,34 @@ export default function Home() {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id !== itemId || !item.analysis) return item;
-        const nextChecks = item.analysis.checks.map((check) =>
-          normalizeLabelKey(check.id) === normalizeLabelKey(field) ? { ...check, status } : check,
-        );
+        const fieldKey = normalizeLabelKey(field);
+        const fieldLabel = FIELD_LABELS[field];
+        const nextChecks = item.analysis.checks.length ? [...item.analysis.checks] : normalizeFieldChecks(item.analysis);
+        const existingIndex = nextChecks.findIndex((check) => {
+          const normalizedId = normalizeLabelKey(check.id);
+          const normalizedLabel = normalizeLabelKey(check.label);
+          return normalizedId === fieldKey || normalizedLabel === fieldKey || normalizedLabel === normalizeLabelKey(fieldLabel);
+        });
+        const nextCheck = {
+          id: field,
+          label: fieldLabel,
+          status,
+          detail:
+            status === 'pass'
+              ? `Marked pass by reviewer.`
+              : field === 'countryOfOrigin'
+                ? 'Marked fail by reviewer.'
+                : 'Marked fail by reviewer.',
+        };
+        if (existingIndex >= 0) {
+          nextChecks[existingIndex] = { ...nextChecks[existingIndex], status };
+        } else {
+          nextChecks.push(nextCheck);
+        }
         const updatedAnalysis = {
           ...item.analysis,
           checks: nextChecks,
         } as LabelAnalysis;
-        if (field === 'countryOfOrigin' && status === 'pass') {
-          updatedAnalysis.countryOfOrigin = updatedAnalysis.countryOfOrigin ?? null;
-        }
         const score = nextChecks.reduce((acc, check) => {
           if (check.status === 'pass') return acc + 1;
           if (check.status === 'review') return acc + 0.45;
@@ -781,6 +830,10 @@ export default function Home() {
         const complianceScore = Math.round((score / Math.max(1, nextChecks.length)) * 100);
         return {
           ...item,
+          checkOverrides: {
+            ...(item.checkOverrides ?? {}),
+            [field]: status,
+          },
           analysis: {
             ...updatedAnalysis,
             complianceScore,
@@ -1125,6 +1178,11 @@ export default function Home() {
                               ) : (
                                 <span className="file-subtle">Queued</span>
                               )}
+                              {item.reviewMeta?.durationMs ? (
+                                <span className="file-subtle file-meta">Reviewed in {formatDuration(item.reviewMeta.durationMs)}</span>
+                              ) : item.status === 'uploading' ? (
+                                <span className="file-subtle file-meta">Scanning now</span>
+                              ) : null}
                             </div>
                           </td>
                           <td>
@@ -1519,8 +1577,18 @@ function Badge({ status }: { status: 'pass' | 'review' | 'fail' }) {
 }
 
 function normalizeItem(item: ReviewItemRecord, batchIdOverride?: string): ReviewItem {
-  const analysis = item.analysis ? { ...item.analysis, checks: normalizeFieldChecks(item.analysis) } : item.analysis;
-  const originalAnalysis = item.originalAnalysis ? { ...item.originalAnalysis, checks: normalizeFieldChecks(item.originalAnalysis) } : item.originalAnalysis;
+  const analysis = item.analysis
+    ? {
+        ...item.analysis,
+        checks: item.analysis.checks?.length ? item.analysis.checks : normalizeFieldChecks(item.analysis),
+      }
+    : item.analysis;
+  const originalAnalysis = item.originalAnalysis
+    ? {
+        ...item.originalAnalysis,
+        checks: item.originalAnalysis.checks?.length ? item.originalAnalysis.checks : normalizeFieldChecks(item.originalAnalysis),
+      }
+    : item.originalAnalysis;
   return {
     id: item.id,
     batchId: batchIdOverride ?? item.batchId ?? '1',
@@ -1534,6 +1602,8 @@ function normalizeItem(item: ReviewItemRecord, batchIdOverride?: string): Review
     analysis,
     originalAnalysis,
     applicationFacts: item.applicationFacts,
+    reviewMeta: item.reviewMeta,
+    checkOverrides: item.checkOverrides,
     error: item.error,
   };
 }
@@ -1558,6 +1628,13 @@ function normalizeFilePart(value: string | null | undefined) {
 
 function normalizeLabelKey(value: string) {
   return normalizeText(value).toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function formatDuration(ms: number) {
+  if (!Number.isFinite(ms) || ms < 0) return '0.0s';
+  if (ms < 1000) return `${Math.max(0.1, ms / 1000).toFixed(1)}s`;
+  if (ms < 10000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms / 1000)}s`;
 }
 
 function formatFieldValue(field: AnalysisField, value: string) {
@@ -1773,6 +1850,8 @@ function toPersistedItem(item: ReviewItem): ReviewItemRecord {
     analysis: item.analysis,
     originalAnalysis: item.originalAnalysis,
     applicationFacts: item.applicationFacts,
+    reviewMeta: item.reviewMeta,
+    checkOverrides: item.checkOverrides,
     error: item.error,
   };
 }
@@ -1806,6 +1885,11 @@ function buildBatchManifest(items: ReviewItem[]) {
   return items.map((item) => ({
     imageFilename: safeZipFilename(item.sourceFilename || item.name || `${item.id}.${mimeToExtension(item.mimeType)}`),
     applicationFacts: buildExportApplicationFacts(item),
+    meta: item.reviewMeta?.durationMs
+      ? {
+          reviewDurationMs: item.reviewMeta.durationMs,
+        }
+      : undefined,
     analysis: item.analysis
       ? {
           ...item.analysis,

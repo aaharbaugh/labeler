@@ -701,7 +701,7 @@ select {
 }
 
 .queue-table tbody tr.newly-added {
-  animation: newly-added-fade 2200ms ease-out forwards;
+  animation: newly-added-fade 4200ms ease-out forwards;
 }
 
 .queue-table tbody tr.newly-added td {

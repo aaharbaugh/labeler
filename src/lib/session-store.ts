@@ -13,6 +13,12 @@ export type ReviewItemRecord = {
   analysis?: LabelAnalysis;
   originalAnalysis?: LabelAnalysis;
   applicationFacts?: Record<string, string>;
+  reviewMeta?: {
+    startedAt?: number;
+    completedAt?: number;
+    durationMs?: number;
+  };
+  checkOverrides?: Record<string, LabelAnalysis['status']>;
   error?: string;
 };
 
