@@ -1812,7 +1812,7 @@ async function prepareReviewImage(file: File) {
 
 async function compressImageDataUrl(
   dataUrl: string,
-  options = { maxWidth: 768, maxHeight: 768, quality: 0.82 },
+  options = { maxWidth: 512, maxHeight: 512, quality: 0.72 },
 ) {
   const image = await loadImageFromDataUrl(dataUrl);
   const width = image.naturalWidth || 1;

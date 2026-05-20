@@ -33,14 +33,14 @@ export async function reviewLabelWithOpenAI(input: ReviewInput): Promise<LabelAn
     return fallback;
   }
 
-  const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
+  const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-nano';
   return reviewLabelWithApiKey(input, apiKey, model);
 }
 
 export async function reviewLabelWithApiKey(
   input: ReviewInput,
   apiKey: string,
-  model = 'gpt-4.1-mini',
+  model = 'gpt-4.1-nano',
 ): Promise<LabelAnalysis> {
   if (!apiKey) {
     const fallback = localFallbackAnalysis('');
@@ -49,9 +49,9 @@ export async function reviewLabelWithApiKey(
   }
 
   const instruction = [
-    'Review this U.S. alcohol label for TTB-style field extraction.',
-    'Return exact visible text for the core fields and null when unreadable.',
-    'Do not invent text.',
+    'Extract the visible fields from this U.S. alcohol label.',
+    'Return only JSON that matches the schema.',
+    'Use null when unreadable. Do not add prose.',
   ].join(' ');
 
   const requestBody: Record<string, unknown> = {
@@ -117,14 +117,14 @@ export async function reviewLabelWithApiKey(
         },
       },
     },
-    max_output_tokens: 400,
+    max_output_tokens: 240,
   };
 
   if (model.startsWith('gpt-5') || /^o\d/.test(model)) {
     requestBody.reasoning = { effort: 'low' };
   }
 
-  const timeoutMs = Number(process.env.VISION_TIMEOUT_MS ?? 12000);
+  const timeoutMs = Number(process.env.VISION_TIMEOUT_MS ?? 9000);
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -158,7 +158,7 @@ export async function reviewLabelWithApiKey(
       : json.output?.flatMap((item) => item.content ?? [])
           .find((item) => item.type === 'output_text')?.text ?? '';
 
-    const parsed = responseSchema.parse(JSON.parse(text));
+    const parsed = responseSchema.parse(parseJsonResponseText(text));
     return buildComplianceChecks({
       brandName: normalizeText(parsed.brandName) || null,
       classType: normalizeText(parsed.classType) || null,
@@ -187,5 +187,19 @@ export async function reviewLabelWithApiKey(
     return fallback;
   } finally {
     clearTimeout(timeoutHandle);
+  }
+}
+
+function parseJsonResponseText(text: string) {
+  const raw = text.trim();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      return JSON.parse(raw.slice(start, end + 1));
+    }
+    throw new Error('OpenAI response did not contain JSON.');
   }
 }
