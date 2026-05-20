@@ -38,6 +38,12 @@ npm run dev
 http://localhost:3100
 ```
 
+4. Run the quick evals:
+
+```bash
+npm run evals
+```
+
 ## How it works
 
 - The browser stores your queue, review state, and API key locally.
@@ -60,6 +66,7 @@ No server-side API key is required for the normal browser-based workflow because
 - Batch imports expect image files plus a JSON manifest, or a ZIP packet containing both.
 - The app keeps working even if an API review fails, but the fallback analysis is less accurate than the vision model.
 - Very large batches are accepted, but review still happens per image.
+- `npm run evals` runs a small sanity check suite against the label parsing helpers.
 
 ## Approach
 

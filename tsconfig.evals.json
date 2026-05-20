@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./.eval-dist",
+    "module": "commonjs",
+    "target": "es2020",
+    "moduleResolution": "node",
+    "types": ["node"]
+  },
+  "include": ["src/lib/ttb.ts", "tests/evals.ts"],
+  "exclude": ["node_modules", ".next", "src/app"]
+}

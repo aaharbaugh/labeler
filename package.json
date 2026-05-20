@@ -8,7 +8,9 @@
     "dev": "next dev -p 3100",
     "build": "next build",
     "start": "next start -p 3100",
-    "lint": "eslint"
+    "lint": "eslint",
+    "evals": "tsc -p tsconfig.evals.json && node .eval-dist/tests/evals.js",
+    "test": "npm run evals"
   },
   "dependencies": {
     "lucide-react": "^1.8.0",

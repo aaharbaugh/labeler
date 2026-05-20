@@ -111,20 +111,20 @@ const SAMPLE_LABELS = [
 
 const REQUIREMENTS = [
   {
-    label: 'Same field of vision',
-    value: 'Brand name, class/type, and alcohol content must appear together on one side of the container.',
+    label: 'What to compare',
+    value: 'Check the imported application facts against the label output. Blank application fields mean the manifest did not provide data.',
   },
   {
-    label: 'Health warning',
-    value: 'Use the exact government warning wording; GOVERNMENT WARNING must be capitalized and bold.',
+    label: 'Fast review',
+    value: 'New labels flash green when added. The queue stays local, and the browser keeps the session state.',
   },
   {
-    label: 'Other mandatory items',
-    value: 'Net contents, name/address, and country of origin for imports must be present when required.',
+    label: 'Export packet',
+    value: 'Exported ZIPs carry the reviewed application JSON and images so the packet can be re-imported later.',
   },
   {
-    label: 'COLA workflow',
-    value: 'Use the mandatory information checklist before applying for COLA; this prototype stays standalone.',
+    label: 'COLA reminder',
+    value: 'Keep the prototype standalone and use TTB checks as guidance, not a COLA integration.',
   },
 ];
 
