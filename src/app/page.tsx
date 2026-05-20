@@ -156,7 +156,6 @@ export default function Home() {
   const [selectedProjectId, setSelectedProjectId] = useState(DEFAULT_PROJECT.id);
   const [showManifestHelper, setShowManifestHelper] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
-  const [expandedPreview, setExpandedPreview] = useState(false);
   const [imageSourceMode, setImageSourceMode] = useState<'upload' | 'camera'>('upload');
   const [addToast, setAddToast] = useState<string | null>(null);
   const [newItemIds, setNewItemIds] = useState<string[]>([]);
@@ -214,7 +213,6 @@ export default function Home() {
 
   useEffect(() => {
     setEditingTitle(false);
-    setExpandedPreview(false);
   }, [selectedItemId]);
 
   useEffect(() => {
@@ -1260,7 +1258,7 @@ export default function Home() {
       {selectedItem && (
         <>
           <div className="drawer-backdrop" onClick={() => setSelectedItemId(null)} />
-          <aside className={`drawer open${expandedPreview ? ' preview-open' : ''}`} onClick={(event) => event.stopPropagation()}>
+          <aside className="drawer open" onClick={(event) => event.stopPropagation()}>
             <div className="drawer-inner">
               <div className="drawer-head">
                 <div className="drawer-title-wrap">
@@ -1295,18 +1293,10 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className={`drawer-preview${expandedPreview ? ' expanded' : ''}`} onClick={() => setExpandedPreview((prev) => !prev)}>
+              <div className="drawer-preview">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={selectedItem.preview} alt={selectedItem.name} />
               </div>
-              {expandedPreview && (
-                <div className="preview-backdrop" onClick={() => setExpandedPreview(false)}>
-                  <div className="preview-stage" onClick={(event) => event.stopPropagation()}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={selectedItem.preview} alt={selectedItem.name} />
-                  </div>
-                </div>
-              )}
 
               {selectedItem.applicationFacts && Object.keys(selectedItem.applicationFacts).length > 0 && (
                 <div className="drawer-application">
