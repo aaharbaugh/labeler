@@ -142,6 +142,7 @@ export default function Home() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showControlPanel, setShowControlPanel] = useState(false);
+  const [showAddLabelsForm, setShowAddLabelsForm] = useState(false);
   const [projects, setProjects] = useState<ProjectRecord[]>([DEFAULT_PROJECT]);
   const [selectedProjectId, setSelectedProjectId] = useState(DEFAULT_PROJECT.id);
   const [showManifestHelper, setShowManifestHelper] = useState(false);
@@ -207,6 +208,7 @@ export default function Home() {
     setSelectedItemId(null);
     setSelectedIds([]);
     lastClickedIndexRef.current = null;
+    setShowAddLabelsForm(false);
   }, [selectedProjectId]);
 
   useEffect(() => {
@@ -585,6 +587,20 @@ export default function Home() {
     lastClickedIndexRef.current = null;
   };
 
+  const deleteProject = () => {
+    if (projects.length <= 1 || activeProject.id === DEFAULT_PROJECT.id) return;
+
+    const remainingProjects = projects.filter((project) => project.id !== activeProject.id);
+    const nextProject = remainingProjects[0] ?? DEFAULT_PROJECT;
+
+    setProjects(remainingProjects.length > 0 ? remainingProjects : [DEFAULT_PROJECT]);
+    setSelectedProjectId(nextProject.id);
+    setItems((prev) => prev.filter((item) => item.projectId !== activeProject.id));
+    setSelectedIds([]);
+    setSelectedItemId(null);
+    lastClickedIndexRef.current = null;
+  };
+
   const clearSavedState = () => {
     setItems([]);
     setCodexApiKey('');
@@ -595,6 +611,7 @@ export default function Home() {
     setSelectedIds([]);
     setProjects([DEFAULT_PROJECT]);
     setSelectedProjectId(DEFAULT_PROJECT.id);
+    setShowAddLabelsForm(false);
     apiKeyRef.current = '';
     activeReviewCountRef.current = 0;
     reviewQueueRef.current = [];
@@ -768,178 +785,6 @@ export default function Home() {
             </button>
           </div>
 
-          <section className="upload-panel" aria-label="Queue form">
-            <div className="upload-panel-head">
-              <div>
-                <strong>Add to Queue</strong>
-                <p>{uploadMode === 'images' ? 'Queue images for a single run.' : 'Queue images plus a batch manifest.'}</p>
-              </div>
-              <div className="segmented">
-                <button type="button" className={uploadMode === 'images' ? 'active' : ''} onClick={() => setUploadMode('images')}>
-                  Image
-                </button>
-                <button type="button" className={uploadMode === 'batch' ? 'active' : ''} onClick={() => setUploadMode('batch')}>
-                  Batch
-                </button>
-              </div>
-            </div>
-
-            {uploadMode === 'images' ? (
-              <form className="upload-form" onSubmit={async (event) => {
-                event.preventDefault();
-                if (!inputRef.current?.files) return;
-                await handleFiles(inputRef.current.files);
-                inputRef.current.value = '';
-              }}>
-                <div className="source-toggle segmented">
-                  <button type="button" className={imageSourceMode === 'upload' ? 'active' : ''} onClick={() => setImageSourceMode('upload')}>
-                    Image
-                  </button>
-                  <button type="button" className={imageSourceMode === 'camera' ? 'active' : ''} onClick={() => setImageSourceMode('camera')}>
-                    <Camera size={14} />
-                    Webcam
-                  </button>
-                </div>
-                {imageSourceMode === 'upload' ? (
-                  <label
-                    className={`upload-area${dragging ? ' dragging' : ''}`}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      setDragging(true);
-                    }}
-                    onDragLeave={() => setDragging(false)}
-                    onDrop={async (event) => {
-                      event.preventDefault();
-                      setDragging(false);
-                      const dropped = Array.from(event.dataTransfer.files);
-                      const zipFile = dropped.find((file) => isZipFile(file));
-                      if (zipFile) {
-                        await importBatchPacket(zipFile);
-                        return;
-                      }
-                      stageBatchImages(dropped);
-                    }}
-                  >
-                    <Files size={22} />
-                    <div>
-                      <strong>Choose images</strong>
-                      <p>JPG, PNG, or WebP.</p>
-                    </div>
-                    <input
-                      ref={inputRef}
-                      className="file-input"
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={async (event) => {
-                        if (!event.target.files) return;
-                        await handleFiles(event.target.files);
-                        event.target.value = '';
-                      }}
-                    />
-                  </label>
-                ) : (
-                  <div
-                    className={`upload-area camera-area${dragging ? ' dragging' : ''}`}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                    }}
-                  >
-                    <div className="camera-stage">
-                      <video ref={cameraVideoRef} autoPlay playsInline muted />
-                    </div>
-                    <div className="camera-actions">
-                      <button className="btn btn-secondary btn-small" type="button" onClick={() => setImageSourceMode('upload')}>
-                        Back to upload
-                      </button>
-                      <button className="btn btn-primary btn-small" type="button" onClick={captureCameraFrame}>
-                        Capture photo
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {imageSourceMode === 'upload' ? (
-                    <button className="btn btn-primary" type="submit">
-                    Add images
-                  </button>
-                ) : null}
-              </form>
-            ) : (
-              <form className="upload-form">
-                <label
-                  className={`upload-area${dragging ? ' dragging' : ''}`}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    setDragging(true);
-                  }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={async (event) => {
-                    event.preventDefault();
-                    setDragging(false);
-                    const dropped = Array.from(event.dataTransfer.files);
-                    const zipFile = dropped.find((file) => isZipFile(file));
-                    if (zipFile) {
-                      await importBatchPacket(zipFile);
-                      return;
-                    }
-                    const manifestFile = dropped.find((file) => file.name.toLowerCase().endsWith('.json'));
-                    if (manifestFile) {
-                      const images = dropped.filter((file) => file !== manifestFile);
-                      if (images.length > 0) {
-                        stageBatchImages(images);
-                      }
-                      await importManifestFile(manifestFile);
-                      return;
-                    }
-                    stageBatchImages(dropped);
-                  }}
-                >
-                  <Files size={22} />
-                  <div>
-                    <strong>Choose batch images</strong>
-                    <p>Drop images, a manifest, or a ZIP packet.</p>
-                  </div>
-                  <input
-                    ref={batchImageInputRef}
-                    className="file-input"
-                    type="file"
-                    accept=".zip,.json,image/*"
-                    multiple
-                    onChange={async (event) => {
-                      const files = Array.from(event.target.files ?? []);
-                      if (files.length === 0) return;
-                      const zipFile = files.find((file) => isZipFile(file));
-                      if (zipFile) {
-                        await importBatchPacket(zipFile);
-                      } else {
-                        const manifestFile = files.find((file) => file.name.toLowerCase().endsWith('.json'));
-                        if (manifestFile) {
-                          const images = files.filter((file) => file !== manifestFile);
-                          if (images.length > 0) {
-                            stageBatchImages(images);
-                          }
-                          await importManifestFile(manifestFile);
-                        } else {
-                          stageBatchImages(files);
-                        }
-                      }
-                      event.target.value = '';
-                    }}
-                  />
-                </label>
-                <div className="control-actions">
-                  <button className="btn btn-secondary btn-small" type="button" onClick={() => setShowManifestHelper(true)}>
-                    <Files size={14} />
-                    Batch Help
-                </button>
-                  <button className="btn btn-primary btn-full" type="button" onClick={() => batchImageInputRef.current?.click()}>
-                    Upload batch
-                  </button>
-                </div>
-              </form>
-            )}
-          </section>
-
           <div className="project-bar">
             <div className="project-pills">
               {projects.map((project) => (
@@ -957,45 +802,235 @@ export default function Home() {
                   <span className="project-pill-name">{project.name}</span>
                   <span className="project-pill-count">{projectCounts[project.id] ?? 0}</span>
                 </button>
-              ))}
+            ))}
+              <button type="button" className="project-pill project-pill-add" onClick={addProject} aria-label="Add folder">
+                +
+              </button>
             </div>
             <div className="project-bar-actions">
-              <button type="button" className="project-pill action add" onClick={addProject} aria-label="Add folder">
-                + New folder
+              <button
+                type="button"
+                className="project-pill action clear"
+                onClick={clearProjectItems}
+                aria-label="Clear folder"
+                disabled={projectItems.length === 0}
+              >
+                Clear folder
               </button>
-              {projectItems.length > 0 && (
-                <button
-                  type="button"
-                  className="project-pill action clear"
-                  onClick={clearProjectItems}
-                  aria-label="Clear folder"
-                >
-                  Clear folder
-                </button>
-              )}
+              <button
+                type="button"
+                className="project-pill action clear"
+                onClick={deleteProject}
+                aria-label="Delete folder"
+                disabled={projects.length <= 1 || activeProject.id === DEFAULT_PROJECT.id}
+              >
+                Delete folder
+              </button>
             </div>
           </div>
 
           <div className="project-shell">
+            {showAddLabelsForm && (
+              <section className="upload-panel" aria-label="Queue form">
+                <div className="upload-panel-head">
+                  <div>
+                    <strong>Add to Queue</strong>
+                    <p>{uploadMode === 'images' ? 'Queue images for a single run.' : 'Queue images plus a batch manifest.'}</p>
+                  </div>
+                  <div className="segmented">
+                    <button type="button" className={uploadMode === 'images' ? 'active' : ''} onClick={() => setUploadMode('images')}>
+                      Image
+                    </button>
+                    <button type="button" className={uploadMode === 'batch' ? 'active' : ''} onClick={() => setUploadMode('batch')}>
+                      Batch
+                    </button>
+                  </div>
+                </div>
+
+                {uploadMode === 'images' ? (
+                  <form
+                    className="upload-form"
+                    onSubmit={async (event) => {
+                      event.preventDefault();
+                      if (!inputRef.current?.files) return;
+                      await handleFiles(inputRef.current.files);
+                      inputRef.current.value = '';
+                    }}
+                  >
+                    <div className="source-toggle segmented">
+                      <button type="button" className={imageSourceMode === 'upload' ? 'active' : ''} onClick={() => setImageSourceMode('upload')}>
+                        Image
+                      </button>
+                      <button type="button" className={imageSourceMode === 'camera' ? 'active' : ''} onClick={() => setImageSourceMode('camera')}>
+                        <Camera size={14} />
+                        Webcam
+                      </button>
+                    </div>
+                    {imageSourceMode === 'upload' ? (
+                      <label
+                        className={`upload-area${dragging ? ' dragging' : ''}`}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          setDragging(true);
+                        }}
+                        onDragLeave={() => setDragging(false)}
+                        onDrop={async (event) => {
+                          event.preventDefault();
+                          setDragging(false);
+                          const dropped = Array.from(event.dataTransfer.files);
+                          const zipFile = dropped.find((file) => isZipFile(file));
+                          if (zipFile) {
+                            await importBatchPacket(zipFile);
+                            return;
+                          }
+                          stageBatchImages(dropped);
+                        }}
+                      >
+                        <Files size={22} />
+                        <div>
+                          <strong>Choose images</strong>
+                          <p>JPG, PNG, or WebP.</p>
+                        </div>
+                        <input
+                          ref={inputRef}
+                          className="file-input"
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={async (event) => {
+                            if (!event.target.files) return;
+                            await handleFiles(event.target.files);
+                            event.target.value = '';
+                          }}
+                        />
+                      </label>
+                    ) : (
+                      <div
+                        className={`upload-area camera-area${dragging ? ' dragging' : ''}`}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                        }}
+                      >
+                        <div className="camera-stage">
+                          <video ref={cameraVideoRef} autoPlay playsInline muted />
+                        </div>
+                        <div className="camera-actions">
+                          <button className="btn btn-secondary btn-small" type="button" onClick={() => setImageSourceMode('upload')}>
+                            Back to upload
+                          </button>
+                          <button className="btn btn-primary btn-small" type="button" onClick={captureCameraFrame}>
+                            Capture photo
+                          </button>
+                        </div>
+                      </div>
+                    )}
+              </form>
+                ) : (
+                  <form className="upload-form">
+                    <label
+                      className={`upload-area${dragging ? ' dragging' : ''}`}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setDragging(true);
+                      }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={async (event) => {
+                        event.preventDefault();
+                        setDragging(false);
+                        const dropped = Array.from(event.dataTransfer.files);
+                        const zipFile = dropped.find((file) => isZipFile(file));
+                        if (zipFile) {
+                          await importBatchPacket(zipFile);
+                          return;
+                        }
+                        const manifestFile = dropped.find((file) => file.name.toLowerCase().endsWith('.json'));
+                        if (manifestFile) {
+                          const images = dropped.filter((file) => file !== manifestFile);
+                          if (images.length > 0) {
+                            stageBatchImages(images);
+                          }
+                          await importManifestFile(manifestFile);
+                          return;
+                        }
+                        stageBatchImages(dropped);
+                      }}
+                    >
+                      <Files size={22} />
+                      <div>
+                        <strong>Choose batch images</strong>
+                        <p>Drop images, a manifest, or a ZIP packet.</p>
+                      </div>
+                      <input
+                        ref={batchImageInputRef}
+                        className="file-input"
+                        type="file"
+                        accept=".zip,.json,image/*"
+                        multiple
+                        onChange={async (event) => {
+                          const files = Array.from(event.target.files ?? []);
+                          if (files.length === 0) return;
+                          const zipFile = files.find((file) => isZipFile(file));
+                          if (zipFile) {
+                            await importBatchPacket(zipFile);
+                          } else {
+                            const manifestFile = files.find((file) => file.name.toLowerCase().endsWith('.json'));
+                            if (manifestFile) {
+                              const images = files.filter((file) => file !== manifestFile);
+                              if (images.length > 0) {
+                                stageBatchImages(images);
+                              }
+                              await importManifestFile(manifestFile);
+                            } else {
+                              stageBatchImages(files);
+                            }
+                          }
+                          event.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <div className="control-actions">
+                      <button className="btn btn-secondary btn-small" type="button" onClick={() => setShowManifestHelper(true)}>
+                        <Files size={14} />
+                        Batch Help
+                      </button>
+                      <button className="btn btn-primary btn-full" type="button" onClick={() => batchImageInputRef.current?.click()}>
+                        Upload batch
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </section>
+            )}
+
             <div className="summary">
-              <span>{stats.pass} pass</span>
-              <span>{stats.review} review</span>
-              <span>{stats.fail} fail</span>
-              <button
-                className="btn btn-secondary btn-small summary-export-btn"
-                onClick={exportSelected}
-                disabled={selectedItems.length === 0}
-                title={selectedItems.length === 0 ? 'Select one or more rows to export' : `Export ${selectedItems.length} selected rows`}
-              >
-                <Download size={14} />
-                Export selection
-              </button>
+              <span className="summary-badge pass">{stats.pass} pass</span>
+              <span className="summary-badge review">{stats.review} review</span>
+              <span className="summary-badge fail">{stats.fail} fail</span>
               {busy && (
                 <span className="summary-busy">
                   <Loader2 size={14} className="spin-icon" />
                   Processing
                 </span>
               )}
+              <div className="summary-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-small summary-action-btn"
+                  onClick={() => setShowAddLabelsForm((prev) => !prev)}
+                >
+                  <Files size={14} />
+                  Add Labels
+                </button>
+                <button
+                  className="btn btn-secondary btn-small summary-action-btn"
+                  onClick={exportSelected}
+                  disabled={selectedItems.length === 0}
+                  title={selectedItems.length === 0 ? 'Select one or more rows to export' : `Export ${selectedItems.length} selected rows`}
+                >
+                  <Download size={14} />
+                  Export Information
+                </button>
+              </div>
             </div>
 
             <div className="queue">

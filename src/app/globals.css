@@ -426,6 +426,18 @@ select {
   border-radius: 999px;
 }
 
+.project-pill-add {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--accent-2);
+  background: rgba(22, 61, 107, 0.05);
+  border-color: rgba(22, 61, 107, 0.12);
+}
+
 .project-pill.clear {
   color: var(--bad);
   background: rgba(180, 35, 24, 0.05);
@@ -460,11 +472,72 @@ select {
   opacity: 0.55;
 }
 
+.summary {
+  margin-top: 0;
+  margin-bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.summary-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 38, 63, 0.12);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.summary-badge.pass {
+  color: var(--good);
+  background: rgba(15, 138, 95, 0.18);
+  border-color: rgba(15, 138, 95, 0.24);
+}
+
+.summary-badge.review {
+  color: var(--warn);
+  background: rgba(207, 124, 0, 0.18);
+  border-color: rgba(207, 124, 0, 0.24);
+}
+
+.summary-badge.fail {
+  color: var(--bad);
+  background: rgba(180, 35, 24, 0.18);
+  border-color: rgba(180, 35, 24, 0.24);
+}
+
+.summary-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.summary-action-btn {
+  min-height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(17, 38, 63, 0.14);
+  background: #fff;
+  color: var(--accent-2);
+  font-weight: 700;
+}
+
+.summary-action-btn svg {
+  flex: none;
+}
+
 .upload-area {
   margin-top: 0;
-  border: 1px dashed rgba(17, 38, 63, 0.2);
+  border: 1px dashed rgba(196, 18, 48, 0.34);
   border-radius: var(--radius);
-  background: #f8fbfe;
+  background: #fff7f8;
   min-height: 138px;
   display: flex;
   align-items: center;
@@ -506,6 +579,14 @@ select {
 .upload-area.dragging {
   border-color: rgba(196, 18, 48, 0.65);
   background: rgba(196, 18, 48, 0.06);
+}
+
+.upload-area strong {
+  color: #9f1128;
+}
+
+.upload-area p {
+  color: #7e4850;
 }
 
 .upload-area strong {
