@@ -149,6 +149,8 @@ export default function Home() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [expandedPreview, setExpandedPreview] = useState(false);
   const [imageSourceMode, setImageSourceMode] = useState<'upload' | 'camera'>('upload');
+  const [addToast, setAddToast] = useState<string | null>(null);
+  const [newItemIds, setNewItemIds] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const batchImageInputRef = useRef<HTMLInputElement>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
@@ -159,27 +161,11 @@ export default function Home() {
   const reviewQueueRef = useRef<Array<() => void>>([]);
   const activeReviewCountRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
+  const addToastTimerRef = useRef<number | null>(null);
+  const newItemTimerRef = useRef<number | null>(null);
   const apiKeyRef = useRef('');
   const lastClickedIndexRef = useRef<number | null>(null);
   const batchCounterRef = useRef(0);
-
-  const stats = useMemo(() => {
-    const done = items.filter((item) => item.status === 'done').length;
-    const pass = items.filter((item) => item.analysis?.status === 'pass').length;
-    const review = items.filter((item) => item.analysis?.status === 'review').length;
-    const fail = items.filter((item) => item.analysis?.status === 'fail').length;
-    return { done, pass, review, fail };
-  }, [items]);
-
-  const busy = useMemo(
-    () => items.some((item) => item.status === 'queued' || item.status === 'uploading'),
-    [items],
-  );
-
-  const selectedItem = useMemo(
-    () => items.find((item) => item.id === selectedItemId) ?? null,
-    [items, selectedItemId],
-  );
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? DEFAULT_PROJECT,
@@ -189,6 +175,24 @@ export default function Home() {
   const projectItems = useMemo(
     () => items.filter((item) => item.projectId === activeProject.id),
     [activeProject.id, items],
+  );
+
+  const stats = useMemo(() => {
+    const done = projectItems.filter((item) => item.status === 'done').length;
+    const pass = projectItems.filter((item) => item.analysis?.status === 'pass').length;
+    const review = projectItems.filter((item) => item.analysis?.status === 'review').length;
+    const fail = projectItems.filter((item) => item.analysis?.status === 'fail').length;
+    return { done, pass, review, fail };
+  }, [projectItems]);
+
+  const busy = useMemo(
+    () => projectItems.some((item) => item.status === 'queued' || item.status === 'uploading'),
+    [projectItems],
+  );
+
+  const selectedItem = useMemo(
+    () => items.find((item) => item.id === selectedItemId) ?? null,
+    [items, selectedItemId],
   );
 
   const projectCounts = useMemo(
@@ -210,6 +214,17 @@ export default function Home() {
     lastClickedIndexRef.current = null;
     setShowAddLabelsForm(false);
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    return () => {
+      if (addToastTimerRef.current) {
+        window.clearTimeout(addToastTimerRef.current);
+      }
+      if (newItemTimerRef.current) {
+        window.clearTimeout(newItemTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (uploadMode !== 'images' || imageSourceMode !== 'camera') {
@@ -308,6 +323,7 @@ export default function Home() {
     const list = Array.from(files).filter((file) => file.type.startsWith('image/'));
     if (list.length === 0) return;
     const batchId = String(++batchCounterRef.current);
+    const addedIds: string[] = [];
 
     for (const file of list) {
       const id = crypto.randomUUID();
@@ -324,9 +340,12 @@ export default function Home() {
         imageDataUrl: reviewData.dataUrl,
         mimeType: reviewData.mimeType,
       };
+      addedIds.push(id);
       setItems((prev) => [queuedItem, ...prev]);
       scheduleReview(() => processFile(queuedItem));
     }
+
+    announceAdded(list.length, addedIds);
   };
 
   const stageBatchImages = (files: FileList | File[]) => {
@@ -344,6 +363,7 @@ export default function Home() {
     if (manifestItems.length === 0 || files.length === 0) return;
 
     batchUploadLockRef.current = true;
+    const addedIds: string[] = [];
 
     const batchId = String(++batchCounterRef.current);
     const filesByName = new Map(
@@ -386,6 +406,7 @@ export default function Home() {
         analysis: reviewAnalysis,
         originalAnalysis: reviewAnalysis,
       };
+      addedIds.push(id);
       setItems((prev) => [queuedItem, ...prev]);
       if (!reviewAnalysis) {
         scheduleReview(() => processFile(queuedItem));
@@ -395,6 +416,7 @@ export default function Home() {
     pendingBatchManifestRef.current = [];
     pendingBatchImagesRef.current = [];
     batchUploadLockRef.current = false;
+    announceAdded(stagedFiles.length, addedIds);
   };
 
   const processFile = async (queuedItem: ReviewItem) => {
@@ -438,6 +460,28 @@ export default function Home() {
         ),
       );
     }
+  };
+
+  const announceAdded = (count: number, ids: string[]) => {
+    if (count <= 0) return;
+
+    setAddToast(`${count} label${count === 1 ? '' : 's'} added`);
+    setNewItemIds(ids);
+
+    if (addToastTimerRef.current) {
+      window.clearTimeout(addToastTimerRef.current);
+    }
+    if (newItemTimerRef.current) {
+      window.clearTimeout(newItemTimerRef.current);
+    }
+
+    addToastTimerRef.current = window.setTimeout(() => {
+      setAddToast(null);
+    }, 2400);
+
+    newItemTimerRef.current = window.setTimeout(() => {
+      setNewItemIds([]);
+    }, 2000);
   };
 
   const scheduleReview = (task: () => Promise<void>) => {
@@ -768,6 +812,7 @@ export default function Home() {
 
   return (
     <main className="page">
+      {addToast && <div className="add-toast">{addToast}</div>}
       <div className="page-layout">
         <section className="container main-column">
           <header className="header">
@@ -1056,7 +1101,7 @@ export default function Home() {
                       return (
                         <tr
                           key={item.id}
-                          className={`${selectedIds.includes(item.id) ? 'selected' : ''} ${item.status === 'done' ? '' : item.status}`}
+                          className={`${selectedIds.includes(item.id) ? 'selected' : ''} ${newItemIds.includes(item.id) ? 'newly-added' : ''} ${item.status === 'done' ? '' : item.status}`}
                           onClick={(event) => handleRowClick(event, item.id, index)}
                         >
                           <td className="select-col">
