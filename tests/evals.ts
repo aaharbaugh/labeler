@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildComplianceChecks,
+  inferBrandAndClassType,
   localFallbackAnalysis,
   normalizeFieldChecks,
   normalizeText,
@@ -59,11 +60,18 @@ GOVERNMENT WARNING: Keep out of reach of children.
   assert.equal(fallback.governmentWarning?.startsWith('GOVERNMENT WARNING:'), true);
 }
 
+function testBrandSplit() {
+  const split = inferBrandAndClassType('General Lee Whiskey', null);
+  assert.equal(split.brandName, 'General Lee');
+  assert.equal(split.classType, 'Whiskey');
+}
+
 function main() {
   testNormalizeText();
   testNormalizeFieldChecks();
   testComplianceScore();
   testFallbackAnalysis();
+  testBrandSplit();
   console.log('evals passed');
 }
 

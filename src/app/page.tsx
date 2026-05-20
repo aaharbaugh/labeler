@@ -791,6 +791,20 @@ export default function Home() {
       };
     }
     if (fieldCheck) return fieldCheck;
+    const currentValue = normalizeText(selectedItem?.analysis?.[field] ?? '');
+    const domesticText = `${normalizeText(selectedItem?.analysis?.producerName)} ${normalizeText(selectedItem?.analysis?.producerAddress)}`;
+    const looksDomestic = /usa|united states|domestic/i.test(domesticText) || /(^|[\s,])(?:al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy)(?=[\s,]|$)/i.test(domesticText);
+    if (!currentValue) {
+      return {
+        id: field,
+        label: FIELD_LABELS[field],
+        status: field === 'countryOfOrigin' && looksDomestic ? 'pass' : 'fail',
+        detail:
+          field === 'countryOfOrigin' && looksDomestic
+            ? 'Domestic labels can omit a country of origin statement.'
+            : 'Blank field. This should be present.',
+      };
+    }
     return {
       id: field,
       label: FIELD_LABELS[field],
@@ -1365,9 +1379,20 @@ export default function Home() {
                                           <span>{fieldCheck.status === 'pass' ? 'Pass' : fieldCheck.status === 'review' ? 'Review' : 'Fail'}</span>
                                         </button>
                                         <div className="field-check-actions">
-                                          <button type="button" onClick={() => setFieldCheckStatus(selectedItem.id, field, fieldCheck.status === 'pass' ? 'fail' : 'pass')}>
-                                            {fieldCheck.status === 'pass' ? 'Fail' : 'Pass'}
-                                          </button>
+                                          {fieldCheck.status === 'review' ? (
+                                            <>
+                                              <button type="button" onClick={() => setFieldCheckStatus(selectedItem.id, field, 'pass')}>
+                                                Pass
+                                              </button>
+                                              <button type="button" onClick={() => setFieldCheckStatus(selectedItem.id, field, 'fail')}>
+                                                Fail
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <button type="button" onClick={() => setFieldCheckStatus(selectedItem.id, field, fieldCheck.status === 'pass' ? 'fail' : 'pass')}>
+                                              {fieldCheck.status === 'pass' ? 'Fail' : 'Pass'}
+                                            </button>
+                                          )}
                                         </div>
                                       </div>
                                     )}

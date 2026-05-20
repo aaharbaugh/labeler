@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { buildComplianceChecks, localFallbackAnalysis, normalizeText, type LabelAnalysis } from './ttb';
+import {
+  buildComplianceChecks,
+  inferBrandAndClassType,
+  localFallbackAnalysis,
+  normalizeText,
+  type LabelAnalysis,
+} from './ttb';
 
 const responseSchema = z.object({
   brandName: z.string().nullable(),
@@ -51,6 +57,7 @@ export async function reviewLabelWithApiKey(
   const instruction = [
     'Extract the visible fields from this U.S. alcohol label.',
     'Return only JSON that matches the schema.',
+    'If the label text combines brand name and class/type, split them into separate fields.',
     'Use null when unreadable. Do not add prose.',
   ].join(' ');
 
@@ -117,7 +124,7 @@ export async function reviewLabelWithApiKey(
         },
       },
     },
-    max_output_tokens: 240,
+    max_output_tokens: 300,
   };
 
   if (model.startsWith('gpt-5') || /^o\d/.test(model)) {
@@ -159,9 +166,10 @@ export async function reviewLabelWithApiKey(
           .find((item) => item.type === 'output_text')?.text ?? '';
 
     const parsed = responseSchema.parse(parseJsonResponseText(text));
+    const inferred = inferBrandAndClassType(parsed.brandName, parsed.classType);
     return buildComplianceChecks({
-      brandName: normalizeText(parsed.brandName) || null,
-      classType: normalizeText(parsed.classType) || null,
+      brandName: inferred.brandName,
+      classType: inferred.classType,
       alcoholContent: normalizeText(parsed.alcoholContent) || null,
       netContents: normalizeText(parsed.netContents) || null,
       producerName: normalizeText(parsed.producerName) || null,

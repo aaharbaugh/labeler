@@ -31,8 +31,66 @@ const NET_RX = /\b(\d+(?:\.\d+)?)\s*(ml|mL|l|L|fl\.?\s*oz|oz)\b/;
 const COUNTRY_RX =
   /\b(usa|united states|scotland|ireland|canada|france|mexico|japan|germany|england)\b/i;
 
+const CLASS_SUFFIXES = [
+  'Kentucky Straight Bourbon Whiskey',
+  'Straight Bourbon Whiskey',
+  'Bourbon Whiskey',
+  'Rye Whiskey',
+  'Malt Whiskey',
+  'Blended Whiskey',
+  'Single Malt Whiskey',
+  'Whiskey',
+  'Whisky',
+  'Vodka',
+  'Gin',
+  'Rum',
+  'Tequila',
+  'Mezcal',
+  'Brandy',
+  'Cognac',
+  'Liqueur',
+  'Cordial',
+  'Wine',
+  'Beer',
+  'Ale',
+  'Lager',
+  'Stout',
+  'Porter',
+  'IPA',
+  'Pilsner',
+  'Cider',
+  'Mead',
+] as const;
+
 export function normalizeText(value: string | null | undefined) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+export function inferBrandAndClassType(brandName: string | null, classType: string | null) {
+  const normalizedBrand = normalizeText(brandName);
+  const normalizedClass = normalizeText(classType);
+
+  if (normalizedClass) {
+    return {
+      brandName: normalizedBrand || null,
+      classType: normalizedClass || null,
+    };
+  }
+
+  for (const suffix of CLASS_SUFFIXES) {
+    const suffixPattern = new RegExp(`\\b${escapeRegex(suffix)}$`, 'i');
+    if (!suffixPattern.test(normalizedBrand)) continue;
+    const brandPart = normalizeText(normalizedBrand.slice(0, normalizedBrand.length - suffix.length));
+    return {
+      brandName: brandPart || normalizedBrand || null,
+      classType: suffix,
+    };
+  }
+
+  return {
+    brandName: normalizedBrand || null,
+    classType: normalizedClass || null,
+  };
 }
 
 function hasUsState(value: string) {
@@ -169,9 +227,11 @@ export function localFallbackAnalysis(ocrText: string): LabelAnalysis {
     warningCheck('governmentWarning', 'Government warning', governmentWarning),
   ];
 
+  const inferred = inferBrandAndClassType(brandName, classType);
+
   return buildComplianceChecks({
-    brandName,
-    classType,
+    brandName: inferred.brandName,
+    classType: inferred.classType,
     alcoholContent,
     netContents,
     producerName,
@@ -250,6 +310,10 @@ function warningCheck(id: string, label: string, value: string | null) {
     status: 'review' as const,
     detail: `Warning text is present, but the header does not start with "${GOV_WARNING_PREFIX}". Detected: ${value}`,
   };
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function summarizeAnalysis(analysis: LabelAnalysis) {
