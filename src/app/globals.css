@@ -773,6 +773,7 @@ select {
   align-items: center;
   gap: 8px;
   white-space: nowrap;
+  flex-wrap: wrap;
 }
 
 .score-bubble {
@@ -1342,6 +1343,7 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .drawer-head-actions .icon-btn {
@@ -1364,6 +1366,33 @@ select {
   font-weight: 700;
   box-shadow: 0 12px 28px rgba(16, 35, 59, 0.12);
   pointer-events: none;
+}
+
+.file-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.file-name {
+  display: block;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.file-subtle {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.file-subtle.error {
+  color: var(--bad);
+}
+
+.status-meta {
+  color: var(--muted-2);
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .check-detail-inline {

@@ -462,7 +462,7 @@ export default function Home() {
             ? {
                 ...item,
                 status: 'done',
-                name: buildReviewedName(analysis, queuedItem.name),
+                name: buildReviewedName(analysis, queuedItem.name, queuedItem.applicationFacts),
                 analysis,
                 originalAnalysis: analysis,
                 reviewMeta: {
@@ -579,7 +579,7 @@ export default function Home() {
   const addProject = () => {
     const nextProject: ProjectRecord = {
       id: crypto.randomUUID(),
-      name: `Project ${projects.length + 1}`,
+      name: `Folder ${projects.length + 1}`,
     };
     setProjects((prev) => [...prev, nextProject]);
     setSelectedProjectId(nextProject.id);
@@ -781,6 +781,15 @@ export default function Home() {
 
   const getFieldCheckState = (field: Exclude<AnalysisField, 'complianceScore' | 'status'>) => {
     const fieldCheck = getFieldCheck(field);
+    const overrideStatus = selectedItem?.checkOverrides?.[field];
+    if (overrideStatus) {
+      return {
+        id: field,
+        label: FIELD_LABELS[field],
+        status: overrideStatus,
+        detail: overrideStatus === 'pass' ? 'Marked pass by reviewer.' : 'Marked fail by reviewer.',
+      };
+    }
     if (fieldCheck) return fieldCheck;
     return {
       id: field,
@@ -830,14 +839,14 @@ export default function Home() {
         const complianceScore = Math.round((score / Math.max(1, nextChecks.length)) * 100);
         return {
           ...item,
-          checkOverrides: {
-            ...(item.checkOverrides ?? {}),
-            [field]: status,
-          },
           analysis: {
             ...updatedAnalysis,
             complianceScore,
             status: complianceScore >= 85 ? 'pass' : complianceScore >= 60 ? 'review' : 'fail',
+          },
+          checkOverrides: {
+            ...(item.checkOverrides ?? {}),
+            [field]: status,
           },
         };
       }),
@@ -1178,11 +1187,6 @@ export default function Home() {
                               ) : (
                                 <span className="file-subtle">Queued</span>
                               )}
-                              {item.reviewMeta?.durationMs ? (
-                                <span className="file-subtle file-meta">Reviewed in {formatDuration(item.reviewMeta.durationMs)}</span>
-                              ) : item.status === 'uploading' ? (
-                                <span className="file-subtle file-meta">Scanning now</span>
-                              ) : null}
                             </div>
                           </td>
                           <td>
@@ -1206,6 +1210,11 @@ export default function Home() {
                                   Queued
                                 </span>
                               )}
+                              {item.reviewMeta?.durationMs ? (
+                                <span className="status-meta">Reviewed in {formatDuration(item.reviewMeta.durationMs)}</span>
+                              ) : item.status === 'uploading' ? (
+                                <span className="status-meta">Scanning now</span>
+                              ) : null}
                             </div>
                           </td>
                           <td className="actions-col">
@@ -1608,8 +1617,16 @@ function normalizeItem(item: ReviewItemRecord, batchIdOverride?: string): Review
   };
 }
 
-function buildReviewedName(analysis: LabelAnalysis, fallback: string) {
-  const parts = [analysis.brandName, analysis.classType, analysis.netContents]
+function buildReviewedName(analysis: LabelAnalysis, fallback: string, applicationFacts?: Record<string, string>) {
+  const facts = applicationFacts ?? {};
+  const parts = [
+    analysis.brandName,
+    analysis.classType,
+    analysis.netContents,
+    facts.brand_name,
+    facts.class_type,
+    facts.net_contents,
+  ]
     .map((value) => normalizeFilePart(value))
     .filter(Boolean) as string[];
 
@@ -1914,9 +1931,7 @@ function buildExportApplicationFacts(item: ReviewItem) {
   const setIfPresent = (key: string, value: string | null) => {
     if (typeof value !== 'string') return;
     const text = normalizeText(value);
-    if (text) {
-      reviewFacts[key] = text;
-    }
+    if (text) reviewFacts[key] = text;
   };
 
   setIfPresent('brand_name', analysis.brandName);
