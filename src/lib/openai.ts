@@ -39,14 +39,14 @@ export async function reviewLabelWithOpenAI(input: ReviewInput): Promise<LabelAn
     return fallback;
   }
 
-  const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-nano';
+  const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
   return reviewLabelWithApiKey(input, apiKey, model);
 }
 
 export async function reviewLabelWithApiKey(
   input: ReviewInput,
   apiKey: string,
-  model = 'gpt-4.1-nano',
+  model = 'gpt-4.1-mini',
 ): Promise<LabelAnalysis> {
   if (!apiKey) {
     const fallback = localFallbackAnalysis('');
